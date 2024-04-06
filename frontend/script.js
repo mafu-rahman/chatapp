@@ -1,16 +1,52 @@
 // Function to send message
+// Define global variables to store topic name and email
+var topicName = "";
+var userEmail = "";
+
 function sendMessage() {
     var messageInput = document.getElementById("messageInput");
-    var messageContent = messageInput.value;
-    messageInput.value = ""; // Clear input field
+    var senderNameInput = document.getElementById("senderName");
+    var senderEmailInput = document.getElementById("senderEmail");
+    var messageTopicInput = document.getElementById("messageTopic");
 
-    // Send message to backend
+    var messageContent = messageInput.value;
+    var senderName = senderNameInput.value;
+    var senderEmail = senderEmailInput.value;
+    var messageTopic = messageTopicInput.value;
+
+    // If sender name and email are not provided, use the previous values
+    if (senderName === "") {
+        senderName = topicName;
+    } else {
+        // Update the global variable if the user changes the name
+        topicName = senderName;
+    }
+    if (senderEmail === "") {
+        senderEmail = userEmail;
+    } else {
+        // Update the global variable if the user changes the email
+        userEmail = senderEmail;
+    }
+
+    // If topic is not provided, use the previous value
+    if (messageTopic === "") {
+        messageTopic = topicName;
+    } else {
+        // Update the global variable if the user changes the topic
+        topicName = messageTopic;
+    }
+
+    messageInput.value = "";
+
     fetch('http://localhost:8080/chatapp/send', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: 'content=' + encodeURIComponent(messageContent),
+        body: 'content=' + encodeURIComponent(messageContent) +
+              '&name=' + encodeURIComponent(senderName) +
+              '&email=' + encodeURIComponent(senderEmail) +
+              '&topic=' + encodeURIComponent(messageTopic),
     })
     .then(response => {
         if (!response.ok) {
@@ -46,23 +82,32 @@ function receiveMessages() {
 
 // Function to display message
 function displayMessage(message) {
-    console.log(message)
+    console.log(message);
 
     var chatMessages = document.getElementById("chatMessages");
     var messageElement = document.createElement("div");
     messageElement.classList.add("message");
 
-    var messageContentElement = document.createElement("div");
-    messageContentElement.classList.add("message-content");
-    messageContentElement.textContent = message[0].content;
-
+    var messageSenderElement = document.createElement("div");
+    messageSenderElement.classList.add("message-sender");
+    messageSenderElement.textContent = message[0].name + " (" + message[0].email + ")";
 
     var messageTimeElement = document.createElement("div");
     messageTimeElement.classList.add("message-time");
     messageTimeElement.textContent = message[0].date;
 
-    messageElement.appendChild(messageContentElement);
+    var messageTopicElement = document.createElement("div");
+    messageTopicElement.classList.add("message-topic");
+    messageTopicElement.textContent = "Topic: " + message[0].topic;
+
+    var messageContentElement = document.createElement("div");
+    messageContentElement.classList.add("message-content");
+    messageContentElement.textContent = message[0].content;
+
+    messageElement.appendChild(messageSenderElement);
     messageElement.appendChild(messageTimeElement);
+    messageElement.appendChild(messageTopicElement);
+    messageElement.appendChild(messageContentElement);
 
     chatMessages.appendChild(messageElement);
 
@@ -70,7 +115,6 @@ function displayMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Display initial messages when page loads
 window.onload = function() {
     receiveMessages();
 };

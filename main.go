@@ -64,9 +64,9 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received request to send message from %s\n", r.RemoteAddr)
 
 	message := &Message{
-		Name:    defaultName,
-		Email:   defaultEmail,
-		Topic:   defaultTopic,
+		Name:    r.FormValue("name"),
+		Email:   r.FormValue("email"),
+		Topic:   r.FormValue("topic"),
 		Content: r.FormValue("content"),
 		Date:    time.Now().Format("01/02/2006 15:04:05"),
 	}

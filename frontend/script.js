@@ -68,7 +68,7 @@ function receiveMessages() {
 
     socket.onmessage = function(event) {
         var message = JSON.parse(event.data);
-        displayMessage(message);
+        displayMessage(message[0]);
     };
 
     socket.onclose = function(event) {
@@ -90,19 +90,19 @@ function displayMessage(message) {
 
     var messageSenderElement = document.createElement("div");
     messageSenderElement.classList.add("message-sender");
-    messageSenderElement.textContent = message[0].name + " (" + message[0].email + ")";
+    messageSenderElement.textContent = message.name + " (" + message.email + ")";
 
     var messageTimeElement = document.createElement("div");
     messageTimeElement.classList.add("message-time");
-    messageTimeElement.textContent = message[0].date;
+    messageTimeElement.textContent = message.date;
 
     var messageTopicElement = document.createElement("div");
     messageTopicElement.classList.add("message-topic");
-    messageTopicElement.textContent = "Topic: " + message[0].topic;
+    messageTopicElement.textContent = "Topic: " + message.topic;
 
     var messageContentElement = document.createElement("div");
     messageContentElement.classList.add("message-content");
-    messageContentElement.textContent = message[0].content;
+    messageContentElement.textContent = message.content;
 
     messageElement.appendChild(messageSenderElement);
     messageElement.appendChild(messageTimeElement);
@@ -115,6 +115,28 @@ function displayMessage(message) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+function viewChatHistory() {
+    fetch('http://localhost:8080/chatapp/history')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to fetch chat history');
+            }
+            return response.json();
+        })
+        .then(messages => {
+            messages.forEach(message => {
+                console.log(messages)
+                displayMessage(message);
+            });
+        })
+        .catch(error => {
+            console.error('Error fetching chat history:', error);
+        });
+
+}
+
 window.onload = function() {
-    receiveMessages();
+        // Start receiving real-time messages
+        viewChatHistory();
+        receiveMessages();
 };

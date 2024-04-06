@@ -135,7 +135,59 @@ func webSocketConnection(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func chatHistory(w http.ResponseWriter, r *http.Request) {
+	// Set CORS headers
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	// Handle preflight OPTIONS request
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// Connect to Redis
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "127.0.0.1:6379",
+		Password: "", // No password
+		DB:       0,  // Use default DB
+	})
+
+	// Get chat history from Redis
+	pickledMessages, err := redisClient.LRange(r.Context(), "messages", 0, -1).Result()
+	if err != nil {
+		log.Println("Error fetching chat history from Redis:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Unmarshal pickled messages into Message structs
+	var messages []*Message
+	for _, pickledMessage := range pickledMessages {
+		var message Message
+		if err := json.Unmarshal([]byte(pickledMessage), &message); err != nil {
+			log.Println("Error unmarshaling message:", err)
+			continue
+		}
+		messages = append(messages, &message)
+	}
+
+	// Marshal messages to JSON
+	jsonMessages, err := json.Marshal(messages)
+	if err != nil {
+		log.Println("Error marshaling chat history to JSON:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Set Content-Type header and write JSON response
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(jsonMessages)
+}
+
 func main() {
+	http.HandleFunc(routePrefix+"/history", chatHistory)
 	http.HandleFunc(routePrefix+"/send", sendMessage)
 	http.HandleFunc(routePrefix+"/websocket", webSocketConnection)
 	log.Fatal(http.ListenAndServe(":8080", nil))

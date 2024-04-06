@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+    <div class="chat-container">
+    <div class="chat-messages" id="chatMessages">
+        <!-- Messages will be dynamically added here -->
+    </div>
+    <div class="chat-input">
+        <input type="text" class="message-input" id="messageInput" placeholder="Type your message...">
+        <input type="text" class="sender-name" id="senderName" placeholder="Your Name">
+        <input type="text" class="sender-email" id="senderEmail" placeholder="Your Email">
+        <input type="text" class="message-topic" id="messageTopic" placeholder="Message Topic">
+        <button class="send-button" onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+    <script src="script.js"></script>
+</body>
+</html>

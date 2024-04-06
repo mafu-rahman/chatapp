@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
 )
 
 // If your application is not hosted on the root of your domain, apply this
@@ -53,13 +55,10 @@ func encodeMessages(messages []*Message) string {
 }
 
 func sendMessage(w http.ResponseWriter, r *http.Request) {
-
 	// Add CORS headers
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-
-	// Create a Message and store it in Redis.
 
 	log.Printf("Received request to send message from %s\n", r.RemoteAddr)
 
@@ -73,6 +72,25 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Message content: %s\n", message.Content)
 
+	// Connect to PostgreSQL
+	db, err := sql.Open("postgres", "postgresql://root:password@localhost:5433/root?sslmode=disable")
+	if err != nil {
+		log.Println("Error connecting to PostgreSQL:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	// Insert message into PostgreSQL
+	_, err = db.Exec("INSERT INTO messages (name, email, topic, content, date) VALUES ($1, $2, $3, $4, $5)",
+		message.Name, message.Email, message.Topic, message.Content, message.Date)
+	if err != nil {
+		log.Println("Error inserting message into PostgreSQL:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Now that we've recorded the message in PostgreSQL, broadcast it to all open clients via Redis
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     "127.0.0.1:6379",
 		Password: "",
@@ -92,7 +110,6 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Now that we've recorded the message in Redis, broadcast it to all open clients.
 	err = redisClient.Publish(r.Context(), redisChannel, encodeMessages([]*Message{message})).Err()
 	if err != nil {
 		log.Println("Error publishing message to Redis channel:", err)
@@ -147,27 +164,30 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Connect to Redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "", // No password
-		DB:       0,  // Use default DB
-	})
-
-	// Get chat history from Redis
-	pickledMessages, err := redisClient.LRange(r.Context(), "messages", 0, -1).Result()
+	// Connect to PostgreSQL
+	db, err := sql.Open("postgres", "postgresql://root:password@localhost:5433/root?sslmode=disable")
 	if err != nil {
-		log.Println("Error fetching chat history from Redis:", err)
+		log.Println("Error connecting to PostgreSQL:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	defer db.Close()
 
-	// Unmarshal pickled messages into Message structs
+	// Retrieve chat history from PostgreSQL
+	rows, err := db.Query("SELECT id, name, email, topic, content, date FROM messages")
+	if err != nil {
+		log.Println("Error retrieving chat history from PostgreSQL:", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	// Iterate over rows and construct messages
 	var messages []*Message
-	for _, pickledMessage := range pickledMessages {
+	for rows.Next() {
 		var message Message
-		if err := json.Unmarshal([]byte(pickledMessage), &message); err != nil {
-			log.Println("Error unmarshaling message:", err)
+		if err := rows.Scan(&message.ID, &message.Name, &message.Email, &message.Topic, &message.Content, &message.Date); err != nil {
+			log.Println("Error scanning row from PostgreSQL:", err)
 			continue
 		}
 		messages = append(messages, &message)

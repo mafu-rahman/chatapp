@@ -82,7 +82,7 @@ func chatHistoryFromPostgres(w http.ResponseWriter) {
 }
 
 // Initializing the postgres database
-func initPostgresDB() {
+func initPostgresDB() error {
 	// Connect to PostgreSQL
 	db, err := connectPostgres()
 	if err != nil {
@@ -104,4 +104,6 @@ func initPostgresDB() {
 	}
 
 	fmt.Println("PostgreSQL database initialized successfully")
+
+	return nil
 }

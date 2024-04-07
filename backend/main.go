@@ -106,7 +106,6 @@ func insertMessagePostgres(w http.ResponseWriter, message *Message) {
 	// Connect to PostgreSQL
 	db, err := connectPostgres()
 	if err != nil {
-		log.Println("Error connecting to PostgreSQL:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -146,6 +145,7 @@ func broadCastRedis(r *http.Request, message *Message) {
 	}
 }
 
+// Function to establish connection using websocket
 func webSocketConnection(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -176,6 +176,7 @@ func webSocketConnection(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Function to get chat history
 func chatHistory(w http.ResponseWriter, r *http.Request) {
 	setCorsHeaders(&w) // to avoid CORS errors
 
@@ -184,14 +185,58 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+
+	// Attempt to fetch chat history from Redis
+	redisMessages, err := fetchChatHistoryFromRedis(r)
+	if err == nil {
+		// If successful, return the chat history retrieved from Redis
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(redisMessages)
+		return
+	}
+
+	// If fetching from Redis fails, fall back to fetching from PostgreSQL
 	chatHistoryFromPostgres(w)
 }
 
+// Function to fetch chat history from Redis
+func fetchChatHistoryFromRedis(r *http.Request) ([]byte, error) {
+	log.Println("Fetching chat from Redis")
+	redisClient := connectRedis()
+
+	// Get chat history from Redis
+	pickledMessages, err := redisClient.LRange(r.Context(), redisMessages, 0, -1).Result()
+	if err != nil {
+		log.Println("Error fetching chat history from Redis:", err)
+		return nil, err
+	}
+
+	// Unmarshal pickled messages into Message structs
+	var messages []*Message
+	for _, pickledMessage := range pickledMessages {
+		var message Message
+		if err := json.Unmarshal([]byte(pickledMessage), &message); err != nil {
+			log.Println("Error unmarshaling message:", err)
+			continue
+		}
+		messages = append(messages, &message)
+	}
+
+	// Marshal messages to JSON
+	jsonMessages, err := json.Marshal(messages)
+	if err != nil {
+		log.Println("Error marshaling chat history to JSON:", err)
+		return nil, err
+	}
+
+	return jsonMessages, nil
+}
+
 func chatHistoryFromPostgres(w http.ResponseWriter) {
+	log.Println("Fetching chat from Postgres")
 	// Connect to PostgreSQL
 	db, err := connectPostgres()
 	if err != nil {
-		log.Println("Error connecting to PostgreSQL:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

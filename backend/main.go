@@ -1,15 +1,12 @@
 package main
 
 import (
-	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 )
@@ -62,26 +59,6 @@ func setCorsHeaders(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
 }
 
-// Helper Function to connect to Redis
-func connectRedis() *redis.Client {
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisAddress,
-		Password: redisPassword,
-		DB:       0,
-	})
-
-	return redisClient
-}
-
-// Helper function to connect to Postgres
-func connectPostgres() (*sql.DB, error) {
-	db, err := sql.Open("postgres", postgresAddress)
-	if err != nil {
-		log.Println("Error connecting to PostgreSQL:", err)
-	}
-	return db, nil
-}
-
 // Function to send new messages
 func sendMessage(w http.ResponseWriter, r *http.Request) {
 	setCorsHeaders(&w) // to avoid CORS errors
@@ -97,52 +74,8 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Message content: %s\n", message.Content)
 
-	broadCastRedis(r, message) // Broadcast message to all open clients via Redis
-	insertMessagePostgres(w, message)
-}
-
-// Function for Postgres
-func insertMessagePostgres(w http.ResponseWriter, message *Message) {
-	// Connect to PostgreSQL
-	db, err := connectPostgres()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	// Insert message into PostgreSQL
-	_, err = db.Exec("INSERT INTO messages (name, email, topic, content, date) VALUES ($1, $2, $3, $4, $5)",
-		message.Name, message.Email, message.Topic, message.Content, message.Date)
-	if err != nil {
-		log.Println("Error inserting message into PostgreSQL:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-}
-
-// Function to Broadcast message to all open clients via Redis and insert into Redis as well
-func broadCastRedis(r *http.Request, message *Message) {
-	redisClient := connectRedis()
-
-	id, err := redisClient.Incr(r.Context(), redisIDKey).Result()
-	if err != nil {
-		log.Println("Error incrementing ID:", err)
-		return
-	}
-	message.ID = int(id)
-
-	err = redisClient.RPush(r.Context(), redisMessages, message.toJSON()).Err()
-	if err != nil {
-		log.Println("Error pushing message to Redis:", err)
-		return
-	}
-
-	err = redisClient.Publish(r.Context(), redisChannel, encodeMessages([]*Message{message})).Err()
-	if err != nil {
-		log.Println("Error publishing message to Redis channel:", err)
-		return
-	}
+	broadCastRedis(r, message)        // Broadcast message to all open clients via Redis
+	insertMessagePostgres(w, message) //insert messages into postgres for persistence
 }
 
 // Function to establish connection using websocket
@@ -197,82 +130,6 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 
 	// If fetching from Redis fails, fall back to fetching from PostgreSQL
 	chatHistoryFromPostgres(w)
-}
-
-// Function to fetch chat history from Redis
-func fetchChatHistoryFromRedis(r *http.Request) ([]byte, error) {
-	log.Println("Fetching chat from Redis")
-	redisClient := connectRedis()
-
-	// Get chat history from Redis
-	pickledMessages, err := redisClient.LRange(r.Context(), redisMessages, 0, -1).Result()
-	if err != nil {
-		log.Println("Error fetching chat history from Redis:", err)
-		return nil, err
-	}
-
-	// Unmarshal pickled messages into Message structs
-	var messages []*Message
-	for _, pickledMessage := range pickledMessages {
-		var message Message
-		if err := json.Unmarshal([]byte(pickledMessage), &message); err != nil {
-			log.Println("Error unmarshaling message:", err)
-			continue
-		}
-		messages = append(messages, &message)
-	}
-
-	// Marshal messages to JSON
-	jsonMessages, err := json.Marshal(messages)
-	if err != nil {
-		log.Println("Error marshaling chat history to JSON:", err)
-		return nil, err
-	}
-
-	return jsonMessages, nil
-}
-
-func chatHistoryFromPostgres(w http.ResponseWriter) {
-	log.Println("Fetching chat from Postgres")
-	// Connect to PostgreSQL
-	db, err := connectPostgres()
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
-
-	// Retrieve chat history from PostgreSQL
-	rows, err := db.Query("SELECT id, name, email, topic, content, date FROM messages")
-	if err != nil {
-		log.Println("Error retrieving chat history from PostgreSQL:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	// Iterate over rows and construct messages
-	var messages []*Message
-	for rows.Next() {
-		var message Message
-		if err := rows.Scan(&message.ID, &message.Name, &message.Email, &message.Topic, &message.Content, &message.Date); err != nil {
-			log.Println("Error scanning row from PostgreSQL:", err)
-			continue
-		}
-		messages = append(messages, &message)
-	}
-
-	// Marshal messages to JSON
-	jsonMessages, err := json.Marshal(messages)
-	if err != nil {
-		log.Println("Error marshaling chat history to JSON:", err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Set Content-Type header and write JSON response
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonMessages)
 }
 
 func main() {

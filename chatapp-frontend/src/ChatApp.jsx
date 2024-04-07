@@ -16,7 +16,6 @@ function ChatApp() {
   }, []);
 
   useEffect(() => {
-    // Scroll chat to bottom when messages state updates
     chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
   }, [messages]);
 

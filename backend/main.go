@@ -14,20 +14,23 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// If your application is not hosted on the root of your domain, apply this
 // prefix before all URLs:
 const routePrefix = "/chatapp"
 
+// default constants
 const (
-	defaultName   = "Jane Smith"
-	defaultEmail  = "janes@yorku.ca"
-	defaultTopic  = "chat"
-	redisChannel  = "messages"
-	redisIDKey    = "id"
-	redisMessages = "messages"
+	defaultName     = "Jane Smith"
+	defaultEmail    = "janes@yorku.ca"
+	defaultTopic    = "chat"
+	redisChannel    = "messages"
+	redisIDKey      = "id"
+	redisMessages   = "messages"
+	redisAddress    = "127.0.0.1:6379"
+	redisPassword   = ""
+	postgresAddress = "postgresql://root:password@localhost:5433/root?sslmode=disable"
 )
 
-// Message represents an individual sent message.
+// Message struct for individaul messages
 type Message struct {
 	ID      int    `json:"id"`
 	Name    string `json:"name"`
@@ -37,11 +40,13 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// Helper function to convert string to JSON and return as a String
 func (m *Message) toJSON() string {
 	return fmt.Sprintf(`{"id":%d,"name":"%s","email":"%s","date":"%s","topic":"%s","content":"%s"}`,
 		m.ID, m.Name, m.Email, m.Date, m.Topic, m.Content)
 }
 
+// Helper function to encode messages into JSON
 func encodeMessages(messages []*Message) string {
 	var encodedMessages []string
 	for _, message := range messages {
@@ -50,14 +55,39 @@ func encodeMessages(messages []*Message) string {
 	return "[" + strings.Join(encodedMessages, ",") + "]"
 }
 
-func sendMessage(w http.ResponseWriter, r *http.Request) {
-	// Add CORS headers
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+// Helper function to set CORS Header
+func setCorsHeaders(w *http.ResponseWriter) {
+	(*w).Header().Set("Access-Control-Allow-Origin", "*")
+	(*w).Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	(*w).Header().Set("Access-Control-Allow-Headers", "Content-Type")
+}
 
+// Helper Function to connect to Redis
+func connectRedis() *redis.Client {
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     redisAddress,
+		Password: redisPassword,
+		DB:       0,
+	})
+
+	return redisClient
+}
+
+// Helper function to connect to Postgres
+func connectPostgres() (*sql.DB, error) {
+	db, err := sql.Open("postgres", postgresAddress)
+	if err != nil {
+		log.Println("Error connecting to PostgreSQL:", err)
+	}
+	return db, nil
+}
+
+// Function to send new messages
+func sendMessage(w http.ResponseWriter, r *http.Request) {
+	setCorsHeaders(&w) // to avoid CORS errors
 	log.Printf("Received request to send message from %s\n", r.RemoteAddr)
 
+	//extracting message from Client
 	message := &Message{
 		Name:    r.FormValue("name"),
 		Email:   r.FormValue("email"),
@@ -65,11 +95,16 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		Content: r.FormValue("content"),
 		Date:    time.Now().Format("01/02/2006 15:04:05"),
 	}
-
 	log.Printf("Message content: %s\n", message.Content)
 
+	broadCastRedis(r, message) // Broadcast message to all open clients via Redis
+	insertMessagePostgres(w, message)
+}
+
+// Function for Postgres
+func insertMessagePostgres(w http.ResponseWriter, message *Message) {
 	// Connect to PostgreSQL
-	db, err := sql.Open("postgres", "postgresql://root:password@localhost:5433/root?sslmode=disable")
+	db, err := connectPostgres()
 	if err != nil {
 		log.Println("Error connecting to PostgreSQL:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -85,13 +120,11 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+}
 
-	// Now that we've recorded the message in PostgreSQL, broadcast it to all open clients via Redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "",
-		DB:       0,
-	})
+// Function to Broadcast message to all open clients via Redis and insert into Redis as well
+func broadCastRedis(r *http.Request, message *Message) {
+	redisClient := connectRedis()
 
 	id, err := redisClient.Incr(r.Context(), redisIDKey).Result()
 	if err != nil {
@@ -125,12 +158,7 @@ func webSocketConnection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:6379",
-		Password: "",
-		DB:       0,
-	})
-
+	redisClient := connectRedis()
 	pubsub := redisClient.Subscribe(r.Context(), redisChannel)
 	defer pubsub.Close()
 
@@ -149,19 +177,19 @@ func webSocketConnection(w http.ResponseWriter, r *http.Request) {
 }
 
 func chatHistory(w http.ResponseWriter, r *http.Request) {
-	// Set CORS headers
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	setCorsHeaders(&w) // to avoid CORS errors
 
 	// Handle preflight OPTIONS request
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
+	chatHistoryFromPostgres(w)
+}
 
+func chatHistoryFromPostgres(w http.ResponseWriter) {
 	// Connect to PostgreSQL
-	db, err := sql.Open("postgres", "postgresql://root:password@localhost:5433/root?sslmode=disable")
+	db, err := connectPostgres()
 	if err != nil {
 		log.Println("Error connecting to PostgreSQL:", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -186,8 +214,6 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error scanning row from PostgreSQL:", err)
 			continue
 		}
-		fmt.Println(message.Date)
-
 		messages = append(messages, &message)
 	}
 

@@ -140,5 +140,12 @@ func main() {
 	http.HandleFunc(routePrefix+"/history", chatHistory)
 	http.HandleFunc(routePrefix+"/send", sendMessage)
 	http.HandleFunc(routePrefix+"/websocket", webSocketConnection)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	http.HandleFunc("/", chatHistory)
+
+	address := ":4222"
+	fmt.Printf("Starting server on address %s...\n", address)
+	err := http.ListenAndServe(address, nil)
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }

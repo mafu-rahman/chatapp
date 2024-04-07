@@ -42,10 +42,6 @@ func (m *Message) toJSON() string {
 		m.ID, m.Name, m.Email, m.Date, m.Topic, m.Content)
 }
 
-func (m *Message) fromJSON(data string) error {
-	return json.Unmarshal([]byte(data), m)
-}
-
 func encodeMessages(messages []*Message) string {
 	var encodedMessages []string
 	for _, message := range messages {
@@ -190,6 +186,8 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error scanning row from PostgreSQL:", err)
 			continue
 		}
+		fmt.Println(message.Date)
+
 		messages = append(messages, &message)
 	}
 

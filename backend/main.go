@@ -133,6 +133,7 @@ func chatHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	initPostgresDB()
 	http.HandleFunc(routePrefix+"/history", chatHistory)
 	http.HandleFunc(routePrefix+"/send", sendMessage)
 	http.HandleFunc(routePrefix+"/websocket", webSocketConnection)

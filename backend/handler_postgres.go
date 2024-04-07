@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -78,4 +79,28 @@ func chatHistoryFromPostgres(w http.ResponseWriter) {
 	// Set Content-Type header and write JSON response
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(jsonMessages)
+}
+
+func initPostgresDB() {
+	// Connect to PostgreSQL
+	db, err := connectPostgres()
+	if err != nil {
+		log.Fatal("Error connecting to PostgreSQL:", err)
+	}
+	defer db.Close()
+
+	// Create messages table if not exists
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS messages (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(255),
+			email VARCHAR(255),
+			date TIMESTAMP,
+			topic VARCHAR(255),
+			content TEXT
+	)`)
+	if err != nil {
+		log.Fatal("Error creating messages table:", err)
+	}
+
+	fmt.Println("PostgreSQL database initialized successfully")
 }

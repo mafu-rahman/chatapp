@@ -20,27 +20,29 @@ func connectRedis() *redis.Client {
 }
 
 // Function to Broadcast message to all open clients via Redis and insert into Redis as well
-func broadCastRedis(r *http.Request, message *Message) {
+func broadCastRedis(r *http.Request, message *Message) error {
 	redisClient := connectRedis()
 
 	id, err := redisClient.Incr(r.Context(), redisIDKey).Result()
 	if err != nil {
 		log.Println("Error incrementing ID:", err)
-		return
+		return err
 	}
 	message.ID = int(id)
 
 	err = redisClient.RPush(r.Context(), redisMessages, message.toJSON()).Err()
 	if err != nil {
 		log.Println("Error pushing message to Redis:", err)
-		return
+		return err
 	}
 
 	err = redisClient.Publish(r.Context(), redisChannel, encodeMessages([]*Message{message})).Err()
 	if err != nil {
 		log.Println("Error publishing message to Redis channel:", err)
-		return
+		return err
 	}
+
+	return nil
 }
 
 // Function to fetch chat history from Redis

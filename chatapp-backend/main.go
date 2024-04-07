@@ -74,7 +74,10 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Message content: %s\n", message.Content)
 
-	broadCastRedis(r, message)        // Broadcast message to all open clients via Redis
+	err := broadCastRedis(r, message) // Broadcast message to all open clients via Redis
+	if err != nil {
+		log.Println(err)
+	}
 	insertMessagePostgres(w, message) //insert messages into postgres for persistence
 }
 

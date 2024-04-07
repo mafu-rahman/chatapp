@@ -81,6 +81,7 @@ func chatHistoryFromPostgres(w http.ResponseWriter) {
 	w.Write(jsonMessages)
 }
 
+// Initializing the postgres database
 func initPostgresDB() {
 	// Connect to PostgreSQL
 	db, err := connectPostgres()

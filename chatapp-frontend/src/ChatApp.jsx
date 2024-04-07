@@ -85,13 +85,20 @@ function ChatApp() {
   }
 
   function displayMessage(message) {
-    setMessages(prevMessages => [...prevMessages, message]);
+    setMessages(prevMessages => {
+      // Checking if prevMessages is null or undefined
+      if (!prevMessages) {
+        prevMessages = [];
+      }
+      // Spread prevMessages and append the new message
+      return [...prevMessages, message];
+    });
   }
 
   return (
     <div className="chat-container">
       <div className="chat-messages" ref={chatMessagesRef}>
-        {messages.map((message, index) => (
+        {messages && messages.map((message, index) => (
           <div key={index} className="message">
             <div className="message-sender">
               {message.name} ({message.email})

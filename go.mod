@@ -1,4 +1,4 @@
-module backend
+module chatapp-backend
 
 go 1.22.1
 

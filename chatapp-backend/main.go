@@ -22,9 +22,9 @@ const (
 	redisChannel    = "messages"
 	redisIDKey      = "id"
 	redisMessages   = "messages"
-	redisAddress    = "127.0.0.1:6379"
+	redisAddress    = "redis:6379"
 	redisPassword   = ""
-	postgresAddress = "postgresql://root:password@localhost:5432/root?sslmode=disable"
+	postgresAddress = "postgresql://root:password@postgresql:5432/root?sslmode=disable"
 )
 
 // Message struct for individaul messages
@@ -142,7 +142,7 @@ func main() {
 	http.HandleFunc(routePrefix+"/websocket", webSocketConnection)
 	http.HandleFunc("/", chatHistory)
 
-	address := ":4222"
+	address := ":30223"
 	fmt.Printf("Starting server on address %s...\n", address)
 	err := http.ListenAndServe(address, nil)
 	if err != nil {

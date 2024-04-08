@@ -25,7 +25,7 @@ function ChatApp() {
     var email = senderEmail;
     var topic = messageTopic;
 
-    fetch('http://localhost:8080/chatapp/send', {
+    fetch('http://192.168.0.102:30223/chatapp/send', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -48,7 +48,7 @@ function ChatApp() {
   }
 
   function receiveMessages() {
-    var socket = new WebSocket('ws://localhost:8080/chatapp/websocket');
+    var socket = new WebSocket('ws://http://192.168.0.102:30223/chatapp/websocket');
 
     socket.onopen = function() {
       console.log('WebSocket connection established.');
@@ -69,7 +69,7 @@ function ChatApp() {
   }
 
   function viewChatHistory() {
-    fetch('http://localhost:8080/chatapp/history')
+    fetch('http://http://192.168.0.102:30223/chatapp/history')
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to fetch chat history');

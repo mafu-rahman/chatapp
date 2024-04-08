@@ -18,7 +18,7 @@ spec:
       - name: chatapp-backend
         image: harbor.pacslab.ca/217847518/chatapp-backend:1.0
         ports:
-        - containerPort: 4222
+        - containerPort: 30223
         resources:
           requests:
             cpu: 100m
@@ -159,13 +159,14 @@ kind: Service
 metadata:
   name: chatapp-backend
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: chatapp-backend
   ports:
-  - name: tcp
+  - name: http
     port: 80
-    targetPort: 4222
+    targetPort: 30223
+    nodePort: 30223
 ---
 apiVersion: v1
 kind: Service

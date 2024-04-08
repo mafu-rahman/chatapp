@@ -16,7 +16,7 @@ spec:
       terminationGracePeriodSeconds: 5
       containers:
       - name: chatapp-backend
-        image: harbor.pacslab.ca/217847518/chatapp-backend
+        image: harbor.pacslab.ca/217847518/chatapp-backend:1.0
         ports:
         - containerPort: 4222
         resources:
@@ -47,7 +47,7 @@ spec:
       terminationGracePeriodSeconds: 5
       containers:
       - name: chatapp-frontend
-        image: harbor.pacslab.ca/217847518/chatapp-frontend
+        image: harbor.pacslab.ca/217847518/chatapp-frontend:1.0
         ports:
         - containerPort: 30222
         resources:

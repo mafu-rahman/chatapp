@@ -24,7 +24,7 @@ const (
 	redisMessages   = "messages"
 	redisAddress    = "127.0.0.1:6379"
 	redisPassword   = ""
-	postgresAddress = "postgresql://root:password@localhost:5433/root?sslmode=disable"
+	postgresAddress = "postgresql://root:password@localhost:5432/root?sslmode=disable"
 )
 
 // Message struct for individaul messages
